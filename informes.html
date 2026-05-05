@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generar Informes - SGRA</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @media print {
+            nav, .filter-section, .btn-print { display: none; }
+            @page { margin: 1cm; size: letter landscape; }
+            body { background: white; padding: 0; font-size: 11pt; }
+            .card { border: none; box-shadow: none; margin: 0 !important; padding: 0; }
+            .table-container { border: 1px solid black; margin-top: 0; }
+            /* Fuerza el salto de página para la segunda tabla */
+            .page-break { page-break-before: always; }
+            /* Compresión de elementos para que entren 16 registros */
+            h2 { margin: 0 0 5px 0 !important; font-size: 1.1rem; }
+            p { margin: 2px 0 !important; font-size: 0.85rem; }
+            #tarjeta-info-curso { margin: 10px 0 !important; padding: 8px !important; }
+            #tarjeta-info-curso table th, #tarjeta-info-curso table td { padding: 2px 5px !important; }
+            th { padding: 0.15rem 0.2rem !important; font-size: 0.7rem !important; line-height: 1.1; }
+            /*AQUI PARA EL ALTO DE FILA FIJO EN TABLA*/
+            td { padding: 0.1rem 0.2rem !important; font-size: 0.75rem !important; line-height: 1; }
+        }
+        th { font-size: 0.8rem; background: #f1f5f9; padding: 0.3rem 0.5rem; }
+        td { font-size: 0.85rem; padding: 0.3rem 0.5rem; }
+    </style>
+</head>
+<body>
+    <nav>
+        <h1>SGRA | Reportes</h1>
+        <ul>
+            <li><a href="index.html">Cursos</a></li>
+            <li><a href="estudiantes.html">Estudiantes</a></li>
+            <li><a href="informes.html">Reportes</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section class="card filter-section">
+            <h3>Generar Informe Mensual</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto auto; gap: 1rem; margin-top: 1rem; align-items: flex-end;">
+                <div>
+                    <label>Curso:</label>
+                    <select id="select-curso-informe" style="width: 100%; padding: 8px" onchange="cargarFiltroModulos()">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Módulos (Notas):</label>
+                    <select id="select-periodo" style="width: 100%; padding: 8px">
+                        <option value="">Seleccione un curso primero</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Asistencias Desde:</label>
+                    <input type="date" id="fecha-inicio-informe" style="width: 100%; padding: 8px">
+                </div>
+                <div>
+                    <label>Asistencias Hasta:</label>
+                    <input type="date" id="fecha-fin-informe" style="width: 100%; padding: 8px">
+                </div>
+                <button class="btn btn-primary" onclick="generarPrevisualizacion()">Generar Reporte</button>
+                <button class="btn btn-print" onclick="window.print()" style="background: #4b5563; color: white">PDF / Imprimir</button>
+            </div>
+        </section>
+
+        <section id="reporte-asistencia-area" class="card" style="margin-top: 2rem; display: none;">
+            <div style="text-align: center; margin-bottom: .5rem;">
+                <h2>INFORME MENSUAL</h2>
+                <h3>REGISTRO DE ASISTENCIA</h3>
+                <p id="asistencia-curso-nombre" style="font-weight: bold;"></p>
+                <p><strong>Docente:</strong> Samuel William Duran Quispe</p>
+            </div>
+            
+            <!-- TARJETA DE INFORMACIÓN MENSUAL -->
+            <div id="tarjeta-info-curso" style="margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; font-size: 0.85rem;">
+                <!-- Contenido inyectado por JS -->
+            </div>
+
+            <div class="table-container">
+                <table id="tabla-asistencia-detallada">
+                    <thead><!-- Dinámico --></thead>
+                    <tbody><!-- Dinámico --></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- PÁGINA 2: RENDIMIENTO ACADÉMICO (Salto de página en impresión) -->
+        <section id="reporte-area" class="card page-break" style="margin-top: 3rem; display: none">
+            <div style="text-align: center; margin-bottom: .5rem">
+                <h2>RENDIMIENTO ACADÉMICO</h2>
+                <p id="reporte-curso-nombre" style="font-weight: bold;"></p>
+                <p><strong>Periodo:</strong> <span id="reporte-periodo-texto"></span></p>
+            </div>
+
+            <div class="table-container">
+                <table id="tabla-informe">
+                    <thead><!-- Dinámico --></thead>
+                    <tbody><!-- Dinámico --></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/main-informes.js"></script>
+</body>
+</html>

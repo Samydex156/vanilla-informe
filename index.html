@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SGRA - Sistema de Gestión de Reportes</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <nav>
+      <h1>SGRA | Instructor</h1>
+      <ul>
+        <li><a href="index.html">Cursos</a></li>
+        <li><a href="estudiantes.html">Estudiantes</a></li>
+        <li><a href="informes.html">Reportes</a></li>
+      </ul>
+    </nav>
+
+    <main id="app">
+      <header>
+        <h2>Panel de Control</h2>
+        <p>
+          Selecciona un curso para gestionar asistencias o generar informes.
+        </p>
+      </header>
+
+      <section id="course-list" class="grid">
+        <!-- Aquí se inyectarán las tarjetas dinámicamente -->
+      </section>
+    </main>
+
+    <!-- 1. Configuración de la conexión -->
+    <script src="js/config.js"></script>
+
+    <!-- 2. Definición de funciones (getCursos, etc.) -->
+    <script src="js/api.js"></script>
+
+    <!-- 3. Lógica que usa las funciones anteriores -->
+    <script src="js/main.js"></script>
+  </body>
+</html>

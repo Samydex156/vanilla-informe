@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asistencias - SGRA</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <nav>
+      <h1>SGRA | Asistencias</h1>
+      <ul>
+        <li><a href="index.html">Cursos</a></li>
+        <li><a href="estudiantes.html">Estudiantes</a></li>
+        <li><a href="informes.html">Reportes</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <header id="curso-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h2 id="nombre-curso">Cargando curso...</h2>
+          <p id="info-sesion">Iniciando sesión de hoy...</p>
+        </div>
+        <div>
+          <label style="font-size: 0.85rem; display: block; margin-bottom: 5px;">Fecha de Registro (Opcional):</label>
+          <input type="date" id="fecha-registro-global" class="form-control" style="padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+        </div>
+      </header>
+
+      <div style="margin-bottom: 1rem;">
+        <input type="text" id="buscador-estudiantes" placeholder="🔍 Buscar estudiante por nombre..." class="form-control" style="width: 100%; padding: 10px; font-size: 1rem; border-radius: 6px; border: 1px solid var(--border);" autofocus>
+      </div>
+
+      <section class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Estudiante</th>
+              <th>Estado</th>
+              <th>Llegada</th>
+              <th>Progreso (P + F)</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="lista-asistencia">
+            <!-- Los datos se inyectarán aquí -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Modal de Calificaciones -->
+      <div id="modal-notas" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
+        <div class="card" style="width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+          <h3 id="modal-estudiante-nombre">Notas del Estudiante</h3>
+          <hr style="margin: 1rem 0" />
+          <div id="contenedor-inputs-notas">
+            <!-- Los cuadros por módulo se generarán aquí -->
+          </div>
+          <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem">
+            <button class="btn btn-primary" onclick="guardarNotas()">Guardar Calificaciones</button>
+            <button class="btn" onclick="cerrarModalNotas()" style="background: #ccc">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/core.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", async () => {
+        const params = new URLSearchParams(window.location.search);
+        const cursoId = params.get("id");
+        const tbody = document.getElementById("lista-asistencia");
+
+        if (!cursoId) {
+          window.location.href = "index.html";
+          return;
+        }
+
+        try {
+          const cursos = await getCursos();
+          const cursoActual = cursos.find((c) => c.id === cursoId);
+
+          if (!cursoActual) throw new Error("Curso no encontrado");
+          document.getElementById("nombre-curso").innerText = cursoActual.nombre;
+
+          const estudiantes = await getEstudiantesPorCurso(cursoId);
+          const modulosCurso = await getModulosPorCurso(cursoId);
+
+          if (estudiantes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay estudiantes inscritos.</td></tr>';
+            return;
+          }
+
+          // Ordenar por fecha de ingreso
+          estudiantes.sort((a, b) => new Date(a.fecha_ingreso) - new Date(b.fecha_ingreso));
+
+          tbody.innerHTML = estudiantes.map((reg) => {
+            const progreso = obtenerInfoProgreso(reg.asistencias, reg.faltas, cursoActual.total_sesiones);
+            const fechaFin = calcularFechaFin(reg.fecha_ingreso, cursoActual.frecuencia, cursoActual.total_sesiones);
+            const restantes = cursoActual.total_sesiones - progreso.sesionesPasadas;
+
+            // Formatear la fecha de ingreso
+            const partes = reg.fecha_ingreso ? reg.fecha_ingreso.split('-') : [];
+            const fechaInicioFormateada = partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : reg.fecha_ingreso;
+
+            // Inferir el módulo final
+            let moduloFinNombre = '-';
+            if (modulosCurso.length > 0 && reg.modulo_inicio_nombre) {
+                const startIndex = modulosCurso.findIndex(m => m.nombre === reg.modulo_inicio_nombre);
+                if (startIndex !== -1) {
+                    const N = modulosCurso.length;
+                    const finalIndex = (startIndex + N - 1) % N;
+                    moduloFinNombre = modulosCurso[finalIndex].nombre;
+                }
+            }
+
+            return `
+              <tr id="row-${reg.inscripcion_id}">
+                  <td>
+                      <strong>${reg.nombre_completo}</strong><br>
+                      <small style="color: #475569; display:block; margin-top:3px;">
+                          <strong>Inicio:</strong> ${fechaInicioFormateada} (${reg.modulo_inicio_nombre || '-'})
+                      </small>
+                      <small style="color: #64748b; display:block; margin-top:2px;">
+                          <strong>Fin:</strong> ${fechaFin} (${moduloFinNombre})
+                      </small>
+                  </td>
+                  <td><span class="status-pill ${progreso.color}">${progreso.texto}</span></td>
+                  <td><input type="time" id="time-${reg.inscripcion_id}" class="form-control" style="padding: 2px;"></td>
+                  <td>
+                      <progress value="${progreso.sesionesPasadas}" max="${cursoActual.total_sesiones}"></progress>
+                      <br><small><span style="color:var(--success); font-weight:bold;">${reg.asistencias} Asist.</span> | <span style="color:var(--danger); font-weight:bold;">${reg.faltas} Faltas</span> | <span style="color:#f59e0b; font-weight:bold;">${restantes} rest.</span></small>
+                  </td>
+                  <td style="display: flex; gap: 5px;">
+                      <button class="btn btn-primary" onclick="marcarAsistenciaRapida('${reg.inscripcion_id}')">P</button>
+                      <button class="btn" onclick="marcarFaltaRapida('${reg.inscripcion_id}')" style="background:#ef4444; color:white;">F</button>
+                      <button class="btn" onclick="abrirModalNotas('${reg.inscripcion_id}', '${reg.nombre_completo}')" style="background:#8b5cf6; color:white;">Notas</button>
+                  </td>
+              </tr>`;
+          }).join("");
+
+          // Lógica de filtrado en tiempo real
+          const buscador = document.getElementById("buscador-estudiantes");
+          buscador.addEventListener("input", (e) => {
+            const term = e.target.value.toLowerCase();
+            const filas = tbody.querySelectorAll("tr");
+            filas.forEach((fila) => {
+              const nombre = fila.querySelector("strong")?.innerText.toLowerCase() || "";
+              if (nombre.includes(term)) {
+                fila.style.display = "";
+              } else {
+                fila.style.display = "none";
+              }
+            });
+          });
+          setTimeout(() => buscador.focus(), 100);
+
+        } catch (error) {
+          console.error("Error:", error);
+          tbody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Error al cargar.</td></tr>`;
+        }
+      });
+
+      async function marcarAsistenciaRapida(inscripcionId) {
+        const timeInput = document.getElementById(`time-${inscripcionId}`);
+        let horaFinal = timeInput.value || `${new Date().getHours().toString().padStart(2, "0")}:${new Date().getMinutes().toString().padStart(2, "0")}`;
+        timeInput.value = horaFinal;
+        
+        const fechaGlobal = document.getElementById("fecha-registro-global").value;
+        const fechaActual = fechaGlobal || new Date().toISOString().split("T")[0];
+
+        try {
+          event.target.disabled = true;
+          await registrarAsistenciaCompleta(inscripcionId, horaFinal, fechaActual);
+          location.reload();
+        } catch (error) {
+          alert("Error al registrar");
+          event.target.disabled = false;
+        }
+      }
+
+      async function marcarFaltaRapida(inscripcionId) {
+        const fechaGlobal = document.getElementById("fecha-registro-global").value;
+        const fechaActual = fechaGlobal || new Date().toISOString().split("T")[0];
+        
+        if (!confirm(`¿Marcar falta para la fecha ${fechaActual}?`)) return;
+        try {
+          event.target.disabled = true;
+          await registrarFalta(inscripcionId, fechaActual);
+          location.reload();
+        } catch (error) {
+          alert("Error");
+          event.target.disabled = false;
+        }
+      }
+
+      let inscripcionActualId = null;
+
+      async function abrirModalNotas(insId, nombre) {
+        inscripcionActualId = insId;
+        document.getElementById("modal-estudiante-nombre").innerText = "Notas: " + nombre;
+        const contenedor = document.getElementById("contenedor-inputs-notas");
+        contenedor.innerHTML = "Cargando...";
+        document.getElementById("modal-notas").style.display = "flex";
+
+        const params = new URLSearchParams(window.location.search);
+        const modulos = await getModulosPorCurso(params.get("id"));
+        const notasExistentes = await getNotasPorInscripcion(insId);
+
+        let html = "";
+        modulos.forEach((m) => {
+          html += `<div style="margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 1rem;">
+                    <h4 style="color: var(--primary); margin-bottom: 0.5rem;">${m.nombre}</h4>
+                    <div style='display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; margin-bottom: 10px;'>`;
+          
+          for (let i = 1; i <= m.cantidad_clases; i++) {
+            const nota = notasExistentes.find((n) => n.tipo === "Práctica" && n.modulo_id === m.id && n.numero === i)?.nota || "";
+            html += `<div>
+                        <label style="font-size: 0.7rem;">P${i}</label>
+                        <input type="number" class="nota-input-p" data-num="${i}" data-mod-id="${m.id}" value="${nota}" style="width:100%; padding:5px;">
+                     </div>`;
+          }
+          
+          const notaEx = notasExistentes.find((n) => n.tipo === "Examen" && n.modulo_id === m.id)?.nota || "";
+          html += `</div>
+                    <div style="display:flex; align-items:center; gap: 10px; background: #f1f5f9; padding: 5px 10px; border-radius: 4px;">
+                        <label style="font-weight: bold; font-size: 0.85rem;">Examen ${m.nombre}:</label>
+                        <input type="number" class="nota-input-e" data-mod="${m.id}" value="${notaEx}" style="width:70px; padding:5px;">
+                    </div>
+                  </div>`;
+        });
+        contenedor.innerHTML = html;
+      }
+
+      function cerrarModalNotas() {
+        document.getElementById("modal-notas").style.display = "none";
+      }
+
+      async function guardarNotas() {
+        if (!inscripcionActualId) return;
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerText = "Guardando...";
+
+        try {
+          const notasParaGuardar = [];
+          
+          // Capturar Prácticas con su Módulo ID[cite: 12, 22]
+          document.querySelectorAll(".nota-input-p").forEach((input) => {
+            if (input.value !== "") {
+              notasParaGuardar.push({
+                inscripcion_id: inscripcionActualId,
+                tipo: "Práctica",
+                nota: Number(input.value),
+                numero: Number(input.dataset.num),
+                modulo_id: input.dataset.modId,
+              });
+            }
+          });
+
+          // Capturar Exámenes[cite: 12, 22]
+          document.querySelectorAll(".nota-input-e").forEach((input) => {
+            if (input.value !== "") {
+              notasParaGuardar.push({
+                inscripcion_id: inscripcionActualId,
+                tipo: "Examen",
+                nota: Number(input.value),
+                modulo_id: input.dataset.mod,
+              });
+            }
+          });
+
+          await guardarCalificacionesMasivas(inscripcionActualId, notasParaGuardar);
+          alert("Calificaciones guardadas.");
+          cerrarModalNotas();
+        } catch (error) {
+          console.error(error);
+          alert("Error: " + error.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerText = "Guardar Calificaciones";
+        }
+      }
+    </script>
+  </body>
+</html>
